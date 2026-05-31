@@ -37,6 +37,54 @@ app.post("/signup", async (req, res) => {
   res.send("User added");
 });
 
+app.get("/user", async (req, res) => {
+  const userEmail = req.body.emailId;
+  try {
+    const user = await User.find({ emailId: userEmail });
+    res.send(user);
+  } catch (e) {
+    res.status(400).send("Something went wrong!");
+  }
+});
+
+app.delete("/user", async (req, res) => {
+  const userId = req.body.userId;
+  try {
+    const user = await User.deleteOne({ _id: userId });
+    res.send("User deleted succesfully");
+  } catch (e) {
+    res.status(400).send("Update Failed!", e.message);
+  }
+});
+
+app.patch("/user/:userId", async (req, res) => {
+  const userId = req.params.userId;
+  const data = req.body;
+  try {
+    const UPDATE_NOT_ALLOWED = ["emailId", "age"];
+    if (Object.keys(data).some((key) => UPDATE_NOT_ALLOWED.includes(key)))
+      throw new Error("Data can't be updated");
+    const user = await User.findOneAndUpdate({ _id: userId }, data, {
+      returnDocument: "after",
+      runValidators: true,
+    });
+    res.send(user);
+  } catch (e) {
+    res.status(400).send("Update Failed! " + e.message);
+  }
+});
+
+app.get("/feed", async (req, res) => {
+  const users = req.body;
+  try {
+    const users = await User.find({});
+    if (users.length === 0) res.status(404).send("No users found!");
+    else res.send(users);
+  } catch (e) {
+    res.status(400).send("Something went wrong!");
+  }
+});
+
 connectDb()
   .then(() => {
     console.log("db connected");
