@@ -31,10 +31,15 @@ app.use(express.json());
 
 app.post("/signup", async (req, res) => {
   // creating a new instance of the User model
-  const user = new User(req.body);
-  await user.save();
+  try {
+    const data = req.body;
+    const user = new User(data);
+    await user.save();
 
-  res.send("User added");
+    res.send("User added");
+  } catch (e) {
+    res.status(400).send("User cannot be added! " + e.message);
+  }
 });
 
 app.get("/user", async (req, res) => {
