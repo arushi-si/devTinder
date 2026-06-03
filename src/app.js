@@ -1,5 +1,8 @@
 const express = require("express");
 const { connectDb } = require("./config/database");
+const { validateSignUpData } = require("./utils/validations");
+const bcrypt = require("bcrypt");
+const validator = require("validator");
 const User = require("./models/user");
 const app = express();
 const port = 3000;
@@ -32,13 +35,54 @@ app.use(express.json());
 app.post("/signup", async (req, res) => {
   // creating a new instance of the User model
   try {
-    const data = req.body;
-    const user = new User(data);
+    const {
+      firstName,
+      lastName,
+      emailId,
+      age,
+      gender,
+      about,
+      skills,
+      password,
+    } = req.body;
+
+    validateSignUpData(req.body);
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = new User({
+      firstName,
+      lastName,
+      emailId,
+      age,
+      gender,
+      about,
+      skills,
+      password: passwordHash,
+    });
     await user.save();
 
     res.send("User added");
   } catch (e) {
     res.status(400).send("User cannot be added! " + e.message);
+  }
+});
+
+app.post("/login", async (req, res) => {
+  // creating a new instance of the User model
+  try {
+    const { emailId, password } = req.body;
+    if (!validator.isEmail(emailId)) res.status(404).send("Invalid email id!");
+    const user = await User.findOne({ emailId });
+
+    if (!user) res.status(404).send("Invalid credentials!");
+
+    const isPwdValid = await bcrypt.compare(password, user.password);
+
+    if (isPwdValid) res.send("Login Succesfull!");
+    else res.send("Invalid credentials!");
+  } catch (e) {
+    res.status(400).send("Validation failed! " + e.message);
   }
 });
 
