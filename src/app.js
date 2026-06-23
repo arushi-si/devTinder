@@ -1,13 +1,15 @@
 const express = require("express");
 const { connectDb } = require("./config/database");
-const { validateSignUpData } = require("./utils/validations");
-const bcrypt = require("bcrypt");
+
 const validator = require("validator");
+const cookieParser = require("cookie-parser");
 const User = require("./models/user");
 const app = express();
 const port = 3000;
 
-const { adminAuth, userAuth } = require("./middlewares/auth");
+const authRouter = require("./routes/auth");
+const profileRouter = require("./routes/profile");
+const requestRouter = require("./routes/requests");
 
 // request handler
 // app.get("/user", (req, res) => {
@@ -31,108 +33,59 @@ const { adminAuth, userAuth } = require("./middlewares/auth");
 // Advance routing: ? + *
 
 app.use(express.json());
+app.use(cookieParser());
 
-app.post("/signup", async (req, res) => {
-  // creating a new instance of the User model
-  try {
-    const {
-      firstName,
-      lastName,
-      emailId,
-      age,
-      gender,
-      about,
-      skills,
-      password,
-    } = req.body;
+app.use("/", authRouter);
+app.use("/", profileRouter);
+app.use("/", requestRouter);
 
-    validateSignUpData(req.body);
+// app.get("/user", async (req, res) => {
+//   const userEmail = req.body.emailId;
+//   try {
+//     const user = await User.find({ emailId: userEmail });
+//     res.send(user);
+//   } catch (e) {
+//     res.status(400).send("Something went wrong!");
+//   }
+// });
 
-    const passwordHash = await bcrypt.hash(password, 10);
+// app.delete("/user", async (req, res) => {
+//   const userId = req.body.userId;
+//   try {
+//     const user = await User.deleteOne({ _id: userId });
+//     res.send("User deleted succesfully");
+//   } catch (e) {
+//     res.status(400).send("Update Failed!", e.message);
+//   }
+// });
 
-    const user = new User({
-      firstName,
-      lastName,
-      emailId,
-      age,
-      gender,
-      about,
-      skills,
-      password: passwordHash,
-    });
-    await user.save();
+// app.patch("/user/:userId", async (req, res) => {
+//   const userId = req.params.userId;
+//   const data = req.body;
+//   try {
+//     const UPDATE_NOT_ALLOWED = ["emailId", "age"];
+//     if (Object.keys(data).some((key) => UPDATE_NOT_ALLOWED.includes(key)))
+//       throw new Error("Data can't be updated");
+//     const user = await User.findOneAndUpdate({ _id: userId }, data, {
+//       returnDocument: "after",
+//       runValidators: true,
+//     });
+//     res.send(user);
+//   } catch (e) {
+//     res.status(400).send("Update Failed! " + e.message);
+//   }
+// });
 
-    res.send("User added");
-  } catch (e) {
-    res.status(400).send("User cannot be added! " + e.message);
-  }
-});
-
-app.post("/login", async (req, res) => {
-  // creating a new instance of the User model
-  try {
-    const { emailId, password } = req.body;
-    if (!validator.isEmail(emailId)) res.status(404).send("Invalid email id!");
-    const user = await User.findOne({ emailId });
-
-    if (!user) res.status(404).send("Invalid credentials!");
-
-    const isPwdValid = await bcrypt.compare(password, user.password);
-
-    if (isPwdValid) res.send("Login Succesfull!");
-    else res.send("Invalid credentials!");
-  } catch (e) {
-    res.status(400).send("Validation failed! " + e.message);
-  }
-});
-
-app.get("/user", async (req, res) => {
-  const userEmail = req.body.emailId;
-  try {
-    const user = await User.find({ emailId: userEmail });
-    res.send(user);
-  } catch (e) {
-    res.status(400).send("Something went wrong!");
-  }
-});
-
-app.delete("/user", async (req, res) => {
-  const userId = req.body.userId;
-  try {
-    const user = await User.deleteOne({ _id: userId });
-    res.send("User deleted succesfully");
-  } catch (e) {
-    res.status(400).send("Update Failed!", e.message);
-  }
-});
-
-app.patch("/user/:userId", async (req, res) => {
-  const userId = req.params.userId;
-  const data = req.body;
-  try {
-    const UPDATE_NOT_ALLOWED = ["emailId", "age"];
-    if (Object.keys(data).some((key) => UPDATE_NOT_ALLOWED.includes(key)))
-      throw new Error("Data can't be updated");
-    const user = await User.findOneAndUpdate({ _id: userId }, data, {
-      returnDocument: "after",
-      runValidators: true,
-    });
-    res.send(user);
-  } catch (e) {
-    res.status(400).send("Update Failed! " + e.message);
-  }
-});
-
-app.get("/feed", async (req, res) => {
-  const users = req.body;
-  try {
-    const users = await User.find({});
-    if (users.length === 0) res.status(404).send("No users found!");
-    else res.send(users);
-  } catch (e) {
-    res.status(400).send("Something went wrong!");
-  }
-});
+// app.get("/feed", async (req, res) => {
+//   const users = req.body;
+//   try {
+//     const users = await User.find({});
+//     if (users.length === 0) res.status(404).send("No users found!");
+//     else res.send(users);
+//   } catch (e) {
+//     res.status(400).send("Something went wrong!");
+//   }
+// });
 
 connectDb()
   .then(() => {
