@@ -2,7 +2,6 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 
 const adminAuth = (req, res, next) => {
-  console.log("admin use");
   const token = "xyzabc";
   const isAuth = token === "xyzabc";
   if (isAuth) next();
@@ -13,7 +12,6 @@ const userAuth = async (req, res, next) => {
   try {
     const cookies = req.cookies;
     const { token } = cookies;
-    console.log(token);
     if (!token) throw new Error("Invalid token!");
     const decodedObj = await jwt.verify(token, "DEV@TINDER13#");
     const { _id } = decodedObj;
