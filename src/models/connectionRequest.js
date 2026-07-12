@@ -23,6 +23,8 @@ const connectionReqSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+connectionReqSchema.index({ fromUserId: 1, toUserId: 1 });
+
 // function called pre -> save (event)
 connectionReqSchema.pre("save", function () {
   const connectionReq = this;
