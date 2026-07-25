@@ -58,7 +58,7 @@ authRouter.post("/login", async (req, res) => {
       const token = await user.getJWT();
 
       res.cookie("token", token);
-      res.send("Login Succesfull!");
+      res.json(user);
     } else res.send("Invalid credentials!");
   } catch (e) {
     res.status(400).send("Validation failed! " + e.message);
