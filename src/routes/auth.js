@@ -7,6 +7,7 @@ const { validateSignUpData } = require("../utils/validations");
 const { HttpError } = require("../middlewares/errorHandler");
 const { userAuth, createSocketToken } = require("../middlewares/auth");
 const { clientIp } = require("../utils/clientIp");
+const { sendDemoLikes } = require("../utils/demo");
 const { COOKIE_OPTIONS, JWT_EXPIRY_MS } = require("../utils/constants");
 
 const authRouter = express.Router();
@@ -62,6 +63,8 @@ authRouter.post("/signup", authLimiter, async (req, res) => {
     experienceLevel,
   });
   await user.save();
+  // a few demo users "like" the newcomer so the Requests tab has something in it
+  await sendDemoLikes(user._id);
 
   // log the user in straight away
   setAuthCookie(res, user);

@@ -7,7 +7,7 @@ const ConnectionRequest = require("../models/connectionRequest");
 const { userAuth } = require("../middlewares/auth");
 const { HttpError } = require("../middlewares/errorHandler");
 const { assertCanMessage, findChat, sendMessage, markRead } = require("../utils/chat");
-const { emitNewMessage, emitMessagesRead } = require("../utils/socket");
+const { emitNewMessage, emitMessagesRead, scheduleDemoReply } = require("../utils/socket");
 const { USER_SAFE_DATA } = require("../utils/constants");
 
 const chatRouter = express.Router();
@@ -96,6 +96,7 @@ chatRouter.post("/chat/:targetUserId", userAuth, async (req, res) => {
   const { targetUserId } = req.params;
   const message = await sendMessage(me, targetUserId, req.body?.text);
   emitNewMessage(me, targetUserId, message);
+  scheduleDemoReply(me, targetUserId);
   res.status(201).json(message);
 });
 

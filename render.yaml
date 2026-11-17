@@ -21,3 +21,9 @@ services:
         sync: false # you'll be asked for it during setup
       - key: CLIENT_ORIGIN
         sync: false # e.g. https://kodo.vercel.app
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

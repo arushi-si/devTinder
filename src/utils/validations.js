@@ -6,9 +6,9 @@ const PASSWORD_RULES =
   "Password must be at least 8 characters with an uppercase letter, a lowercase letter, a number and a symbol";
 
 const validateSignUpData = (body) => {
-  const { firstName, lastName, emailId, password } = body;
-  if (!firstName || !lastName)
-    throw new HttpError(400, "firstName and lastName are required");
+  // lastName is optional (Hinge-style: first name is enough to get started)
+  const { firstName, emailId, password } = body;
+  if (!firstName) throw new HttpError(400, "firstName is required");
   if (!emailId || !validator.isEmail(String(emailId)))
     throw new HttpError(400, "Invalid email id");
   validatePassword(password);
@@ -31,6 +31,10 @@ const ALLOWED_EDIT_FIELDS = [
   "location",
   "githubUrl",
   "experienceLevel",
+  "prompts",
+  "projects",
+  "onboardingCompleted",
+  // photos are managed through the /profile/photos endpoints
 ];
 
 const validateEditProfileData = (body) => {

@@ -16,6 +16,7 @@ const profileRouter = require("./routes/profile");
 const requestRouter = require("./routes/requests");
 const userRouter = require("./routes/user");
 const chatRouter = require("./routes/chat");
+const metaRouter = require("./routes/meta");
 
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not set");
 
@@ -39,6 +40,7 @@ app.use("/", profileRouter);
 app.use("/", requestRouter);
 app.use("/", userRouter);
 app.use("/", chatRouter);
+app.use("/", metaRouter);
 
 app.use(notFound);
 app.use(errorHandler);
