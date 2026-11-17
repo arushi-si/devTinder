@@ -1,28 +1,38 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
+const { SOCKET_TOKEN_EXPIRY } = require("../utils/constants");
 
-const adminAuth = (req, res, next) => {
-  const token = "xyzabc";
-  const isAuth = token === "xyzabc";
-  if (isAuth) next();
-  else res.status(401).send("Admin auth failed");
-};
-
-const userAuth = async (req, res, next) => {
+// Session tokens (the login cookie) have no "purpose" claim; socket tokens have purpose "socket".
+// Checking the purpose means a socket token can't be used as a session cookie and vice versa.
+const verifyUser = async (token, purpose) => {
+  if (!token) return null;
   try {
-    const cookies = req.cookies;
-    const { token } = cookies;
-    if (!token) throw new Error("Invalid token!");
-    const decodedObj = await jwt.verify(token, "DEV@TINDER13#");
-    const { _id } = decodedObj;
-    const user = await User.findById(_id);
-
-    if (!user) throw new Error("User not found!");
-    req.user = user;
-    next();
-  } catch (e) {
-    res.status(400).send("ERROR " + e.message);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if ((payload.purpose || "session") !== purpose) return null;
+    return await User.findById(payload._id);
+  } catch {
+    return null;
   }
 };
 
-module.exports = { adminAuth, userAuth };
+const getUserFromToken = (token) => verifyUser(token, "session");
+const getUserFromSocketToken = (token) => verifyUser(token, "socket");
+
+const createSocketToken = (userId) =>
+  jwt.sign({ _id: userId, purpose: "socket" }, process.env.JWT_SECRET, {
+    expiresIn: SOCKET_TOKEN_EXPIRY,
+  });
+
+const userAuth = async (req, res, next) => {
+  const user = await getUserFromToken(req.cookies?.token);
+  if (!user) return res.status(401).json({ error: "Please log in" });
+  req.user = user;
+  next();
+};
+
+module.exports = {
+  userAuth,
+  getUserFromToken,
+  getUserFromSocketToken,
+  createSocketToken,
+};

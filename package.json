@@ -1,11 +1,12 @@
 {
-  "name": "dev-tinder-be",
+  "name": "kodo-be",
   "version": "1.0.0",
-  "description": "tinder for devs",
+  "description": "Kodo backend: matching and chat for developers",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js"
   },
   "author": "arushi-singh",
   "license": "ISC",
@@ -13,9 +14,16 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.3",
+    "socket.io": "^4.8.1",
     "validator": "^13.15.35"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

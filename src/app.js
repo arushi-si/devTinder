@@ -1,101 +1,58 @@
+require("dotenv").config();
+
+const http = require("http");
 const express = require("express");
 const cors = require("cors");
-const { connectDb } = require("./config/database");
-
-const validator = require("validator");
+const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
-const User = require("./models/user");
-const app = express();
-const port = 3000;
+const { connectDb } = require("./config/database");
+const { CLIENT_ORIGINS } = require("./utils/constants");
+const { notFound, errorHandler } = require("./middlewares/errorHandler");
+const { initSocket } = require("./utils/socket");
 
 const authRouter = require("./routes/auth");
 const profileRouter = require("./routes/profile");
 const requestRouter = require("./routes/requests");
 const userRouter = require("./routes/user");
+const chatRouter = require("./routes/chat");
 
-// request handler
-// app.get("/user", (req, res) => {
-//   // console.log(req.query);
-//   // route handler
-//   res.send({ fName: "Arush", lName: "Singh" });
-// });
-// // dynamic routing
-// app.use("/hello/:hId", (req, res) => {
-//   console.log(req.params);
-//   res.send("Hello Hellooo!");
-// });
-// app.use("/admin", adminAuth);
-// app.get("/admin/data", (req, res) => {
-//   res.send("all data fetched");
-// });
-// app.get("/admin/deleteUser", (req, res) => {
-//   res.send("all users deleted");
-// });
-// app.get("/user", userAuth, (req, res) => res.send("random user endpoint"));
-// Advance routing: ? + *
+if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not set");
 
-app.use(express.json());
+const port = process.env.PORT || 3000;
+const app = express();
+
+// Number of proxies in front of the app, so req.ip (used by rate limiting) is the real client IP.
+// Vercel rewrite + Render load balancer = 2. Check with GET /health.
+if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY));
+
+app.use(helmet());
+app.use(cors({ origin: CLIENT_ORIGINS, credentials: true }));
+app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+
+// ip = the caller's own IP as the server sees it; should match yours, not Vercel's
+app.get("/health", (req, res) => res.json({ ok: true, ip: req.ip }));
 
 app.use("/", authRouter);
 app.use("/", profileRouter);
 app.use("/", requestRouter);
 app.use("/", userRouter);
+app.use("/", chatRouter);
 
-// app.get("/user", async (req, res) => {
-//   const userEmail = req.body.emailId;
-//   try {
-//     const user = await User.find({ emailId: userEmail });
-//     res.send(user);
-//   } catch (e) {
-//     res.status(400).send("Something went wrong!");
-//   }
-// });
+app.use(notFound);
+app.use(errorHandler);
 
-// app.delete("/user", async (req, res) => {
-//   const userId = req.body.userId;
-//   try {
-//     const user = await User.deleteOne({ _id: userId });
-//     res.send("User deleted succesfully");
-//   } catch (e) {
-//     res.status(400).send("Update Failed!", e.message);
-//   }
-// });
-
-// app.patch("/user/:userId", async (req, res) => {
-//   const userId = req.params.userId;
-//   const data = req.body;
-//   try {
-//     const UPDATE_NOT_ALLOWED = ["emailId", "age"];
-//     if (Object.keys(data).some((key) => UPDATE_NOT_ALLOWED.includes(key)))
-//       throw new Error("Data can't be updated");
-//     const user = await User.findOneAndUpdate({ _id: userId }, data, {
-//       returnDocument: "after",
-//       runValidators: true,
-//     });
-//     res.send(user);
-//   } catch (e) {
-//     res.status(400).send("Update Failed! " + e.message);
-//   }
-// });
-
-// app.get("/feed", async (req, res) => {
-//   const users = req.body;
-//   try {
-//     const users = await User.find({});
-//     if (users.length === 0) res.status(404).send("No users found!");
-//     else res.send(users);
-//   } catch (e) {
-//     res.status(400).send("Something went wrong!");
-//   }
-// });
+const server = http.createServer(app);
+initSocket(server);
 
 connectDb()
   .then(() => {
     console.log("db connected");
-    app.listen(port, () => {
-      console.log(`Example app listening on port ${port}`);
+    server.listen(port, () => {
+      console.log(`Server listening on port ${port}`);
     });
   })
-  .catch((e) => console.log(e));
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });

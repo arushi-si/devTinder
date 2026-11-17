@@ -1,5 +1,14 @@
 const mongoose = require("mongoose");
 
+/**
+ * One record per pair of users describes their relationship:
+ *  ignored    – fromUser swiped left on toUser
+ *  interested – fromUser swiped right, waiting for toUser to review
+ *  accepted   – connected (can message)
+ *  rejected   – toUser rejected the request, or either side unmatched
+ *  blocked    – blockedBy blocked the other user (fromUserId = blocker)
+ * Any record hides the two users from each other's feed.
+ */
 const connectionReqSchema = new mongoose.Schema(
   {
     fromUserId: {
@@ -17,23 +26,27 @@ const connectionReqSchema = new mongoose.Schema(
       required: true,
       // used when only some values are acceptable
       enum: {
-        values: ["ignored", "interested", "accepted", "rejected"],
+        values: ["ignored", "interested", "accepted", "rejected", "blocked"],
         message: "{VALUE} is incorrect status type",
       },
+    },
+    blockedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   { timestamps: true },
 );
 
-connectionReqSchema.index({ fromUserId: 1, toUserId: 1 });
+connectionReqSchema.index({ fromUserId: 1, toUserId: 1 }, { unique: true });
+connectionReqSchema.index({ toUserId: 1, status: 1 });
+connectionReqSchema.index({ fromUserId: 1, status: 1 });
 
-// function called pre -> save (event)
+// function called pre -> save (event); throwing aborts the save
 connectionReqSchema.pre("save", function () {
-  const connectionReq = this;
-  if (connectionReq.fromUserId.equals(connectionReq.toUserId))
+  if (this.fromUserId.equals(this.toUserId))
     throw new Error("Request can't be sent to self");
-
-  next();
 });
 
 const ConnectionReqModel = mongoose.model(

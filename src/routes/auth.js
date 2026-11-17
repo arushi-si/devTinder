@@ -1,76 +1,95 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const { validateSignUpData } = require("../utils/validations");
-const jwt = require("jsonwebtoken");
 const validator = require("validator");
+const rateLimit = require("express-rate-limit");
 const User = require("../models/user");
+const { validateSignUpData } = require("../utils/validations");
+const { HttpError } = require("../middlewares/errorHandler");
+const { userAuth, createSocketToken } = require("../middlewares/auth");
+const { COOKIE_OPTIONS, JWT_EXPIRY_MS } = require("../utils/constants");
 
 const authRouter = express.Router();
 
-authRouter.post("/signup", async (req, res) => {
-  // creating a new instance of the User model
-  try {
-    const {
-      firstName,
-      lastName,
-      emailId,
-      age,
-      gender,
-      about,
-      skills,
-      password,
-    } = req.body;
-
-    validateSignUpData(req.body);
-
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    const user = new User({
-      firstName,
-      lastName,
-      emailId,
-      age,
-      gender,
-      about,
-      skills,
-      password: passwordHash,
-    });
-    await user.save();
-
-    res.send("User added");
-  } catch (e) {
-    res.status(400).send("User cannot be added! " + e.message);
-  }
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many attempts, please try again in a few minutes" },
 });
 
-authRouter.post("/login", async (req, res) => {
-  // creating a new instance of the User model
-  try {
-    const { emailId, password } = req.body;
-    if (!validator.isEmail(emailId)) res.status(404).send("Invalid email id!");
-    const user = await User.findOne({ emailId });
+const setAuthCookie = (res, user) => {
+  res.cookie("token", user.getJWT(), { ...COOKIE_OPTIONS, maxAge: JWT_EXPIRY_MS });
+};
 
-    if (!user) res.status(404).send("Invalid credentials!");
+authRouter.post("/signup", authLimiter, async (req, res) => {
+  const body = req.body || {};
+  validateSignUpData(body);
+  const {
+    firstName,
+    lastName,
+    emailId,
+    password,
+    age,
+    gender,
+    about,
+    skills,
+    photoUrl,
+    headline,
+    location,
+    githubUrl,
+    experienceLevel,
+  } = body;
 
-    const isPwdValid = await user.verifyPassword(password);
+  if (await User.exists({ emailId: String(emailId).toLowerCase().trim() }))
+    throw new HttpError(409, "Email is already registered");
 
-    if (isPwdValid) {
-      const token = await user.getJWT();
+  const user = new User({
+    firstName,
+    lastName,
+    emailId,
+    password: await bcrypt.hash(password, 10),
+    age,
+    gender,
+    about,
+    skills,
+    photoUrl,
+    headline,
+    location,
+    githubUrl,
+    experienceLevel,
+  });
+  await user.save();
 
-      res.cookie("token", token);
-      res.json(user);
-    } else res.send("Invalid credentials!");
-  } catch (e) {
-    res.status(400).send("Validation failed! " + e.message);
-  }
+  // log the user in straight away
+  setAuthCookie(res, user);
+  res.status(201).json(user);
 });
 
-authRouter.post("/logout", async (req, res) => {
-  res
-    .cookie("token", null, {
-      expires: new Date(Date.now()),
-    })
-    .send("User logged out successfully!");
+authRouter.post("/login", authLimiter, async (req, res) => {
+  const { emailId, password } = req.body || {};
+  if (!emailId || !password || !validator.isEmail(String(emailId)))
+    throw new HttpError(400, "Email and password are required");
+
+  const user = await User.findOne({ emailId: String(emailId).toLowerCase().trim() });
+  // same response for unknown email and wrong password
+  if (!user || !(await user.verifyPassword(String(password))))
+    throw new HttpError(401, "Invalid credentials!");
+
+  setAuthCookie(res, user);
+  res.json(user);
+});
+
+// The FE fetches this (through its /api proxy, so the cookie is sent) and passes the token
+// in the socket.io handshake, because the socket connects to this server directly.
+authRouter.get("/socket-token", userAuth, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ token: createSocketToken(req.user._id) });
+});
+
+authRouter.post("/logout", (req, res) => {
+  res.clearCookie("token", COOKIE_OPTIONS);
+  res.json({ message: "User logged out successfully!" });
 });
 
 module.exports = authRouter;
