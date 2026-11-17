@@ -31,7 +31,9 @@ app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
 // ip = the caller's own IP as the server sees it; should match yours, not Vercel's
-app.get("/health", (req, res) => res.json({ ok: true, ip: req.ip }));
+app.get("/health", (req, res) =>
+  res.json({ ok: true, ip: req.ip, xff: req.headers["x-forwarded-for"], realIp: req.headers["x-real-ip"], vercelIp: req.headers["x-vercel-forwarded-for"] }),
+); // TEMP: proxy chain debug
 
 app.use("/", authRouter);
 app.use("/", profileRouter);
