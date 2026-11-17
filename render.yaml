@@ -1,0 +1,23 @@
+# Render Blueprint: New > Blueprint > pick this repo.
+services:
+  - type: web
+    name: kodo-be
+    runtime: node
+    plan: free # "starter" ($7/mo) never sleeps
+    region: singapore
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: TRUST_PROXY
+        value: "2"
+      - key: JWT_SECRET
+        generateValue: true # Render generates a long random secret
+      - key: MONGODB_URI
+        sync: false # you'll be asked for it during setup
+      - key: CLIENT_ORIGIN
+        sync: false # e.g. https://kodo.vercel.app
