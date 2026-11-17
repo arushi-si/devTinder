@@ -6,6 +6,7 @@ const User = require("../models/user");
 const { validateSignUpData } = require("../utils/validations");
 const { HttpError } = require("../middlewares/errorHandler");
 const { userAuth, createSocketToken } = require("../middlewares/auth");
+const { clientIp } = require("../utils/clientIp");
 const { COOKIE_OPTIONS, JWT_EXPIRY_MS } = require("../utils/constants");
 
 const authRouter = express.Router();
@@ -15,6 +16,7 @@ const authLimiter = rateLimit({
   limit: 20,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  keyGenerator: clientIp,
   message: { error: "Too many attempts, please try again in a few minutes" },
 });
 

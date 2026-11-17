@@ -9,6 +9,7 @@ const { connectDb } = require("./config/database");
 const { CLIENT_ORIGINS } = require("./utils/constants");
 const { notFound, errorHandler } = require("./middlewares/errorHandler");
 const { initSocket } = require("./utils/socket");
+const { clientIp } = require("./utils/clientIp");
 
 const authRouter = require("./routes/auth");
 const profileRouter = require("./routes/profile");
@@ -21,8 +22,8 @@ if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is not set");
 const port = process.env.PORT || 3000;
 const app = express();
 
-// Number of proxies in front of the app, so req.ip (used by rate limiting) is the real client IP.
-// Vercel rewrite + Render load balancer = 2. Check with GET /health.
+// Number of proxies in front of the app. Rate limiting doesn't rely on this in production
+// (see clientIp in utils/clientIp.js); it just keeps express-rate-limit's proxy checks quiet.
 if (process.env.TRUST_PROXY) app.set("trust proxy", Number(process.env.TRUST_PROXY));
 
 app.use(helmet());
@@ -30,10 +31,8 @@ app.use(cors({ origin: CLIENT_ORIGINS, credentials: true }));
 app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
-// ip = the caller's own IP as the server sees it; should match yours, not Vercel's
-app.get("/health", (req, res) =>
-  res.json({ ok: true, ip: req.ip, xff: req.headers["x-forwarded-for"], realIp: req.headers["x-real-ip"], vercelIp: req.headers["x-vercel-forwarded-for"] }),
-); // TEMP: proxy chain debug
+// ip = the client IP rate limiting uses; through the Vercel proxy it should be your own IP
+app.get("/health", (req, res) => res.json({ ok: true, ip: clientIp(req) }));
 
 app.use("/", authRouter);
 app.use("/", profileRouter);

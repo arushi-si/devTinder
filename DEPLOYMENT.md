@@ -47,8 +47,8 @@ browser ─► kodo.vercel.app            React app (Vercel)
 - [ ] If you change env vars on Vercel later, **redeploy**. Vite reads `VITE_*` values at build time.
 
 ## 4. Check it works
-1. Open `https://kodo.vercel.app/api/health`. The JSON `ip` field should be **your** IP address (compare with whatismyip.com).
-   - If it shows some other IP, change `TRUST_PROXY` on Render. Try `3`, then `1`, until it matches. Otherwise login rate limiting will be shared across all users.
+1. Open `https://kodo.vercel.app/api/health`. The JSON `ip` field should be **your** IP address (compare with whatismyip.com). Rate limiting reads it from `x-vercel-forwarded-for` (see `src/utils/clientIp.js`).
+   - If it shows a Vercel or Cloudflare IP, requests are not coming through the `/api` rewrite.
 2. Sign up, refresh the page (you should stay logged in), then open `/feed` directly (it shouldn't 404).
 3. In a second browser or a private window, sign up a second user. Swipe right on each other: you should get the match modal.
 4. Chat between the two. Messages, the typing indicator and "Seen" should all update live.
@@ -63,7 +63,7 @@ browser ─► kodo.vercel.app            React app (Vercel)
 | `/api/...` returns Vercel's 404 page | The rewrite destination in `vercel.json` is wrong, or the change wasn't pushed. |
 | Chat says "Connection problem" or the console shows a CORS error | `CLIENT_ORIGIN` on Render doesn't exactly match the Vercel URL, or `VITE_SOCKET_URL` is wrong or missing (rebuild after fixing). |
 | Socket fails with `Unauthorized` | `/api/socket-token` failed. Check that you're logged in, and that `JWT_SECRET` didn't change between deploys. |
-| "Too many attempts" for everyone | `TRUST_PROXY` is wrong (see check 1). |
+| "Too many attempts" for everyone | The client IP isn't being read correctly; check that `/api/health` shows your own IP (check 1). |
 | Everyone is logged out after a deploy | `JWT_SECRET` changed. Keep it stable. |
 
 ## Running locally (unchanged)
