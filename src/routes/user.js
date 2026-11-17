@@ -61,6 +61,15 @@ userRouter.get("/user/blocked", userAuth, async (req, res) => {
   res.json(blocks.map((b) => b.toUserId).filter(Boolean));
 });
 
+// people I swiped left on, newest first, so a pass can be undone (DELETE /request/swipe/:userId)
+userRouter.get("/user/passed", userAuth, async (req, res) => {
+  const passes = await ConnectionRequest.find({ fromUserId: req.user._id, status: "ignored" })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .populate("toUserId", USER_SAFE_DATA);
+  res.json(passes.map((p) => p.toUserId).filter(Boolean));
+});
+
 // users I haven't interacted with yet. ?page=1&limit=10&skills=react,node
 userRouter.get("/user/feed", userAuth, async (req, res) => {
   const me = req.user._id;
@@ -90,7 +99,7 @@ userRouter.get("/user/feed", userAuth, async (req, res) => {
 
   const data = await User.find(filter)
     .select(USER_SAFE_DATA)
-    .sort({ createdAt: -1 })
+    .sort({ isDemo: 1, createdAt: -1 }) // real people first, demo profiles after
     .skip((page - 1) * limit)
     .limit(limit)
     .lean();

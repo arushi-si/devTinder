@@ -8,6 +8,7 @@ const {
   sendMessage,
   markRead,
 } = require("./chat");
+const { isDemoUser, pickReply } = require("./demo");
 
 let io = null;
 
@@ -91,6 +92,7 @@ const initSocket = (server) => {
         const message = await sendMessage(me, targetUserId, text);
         emitNewMessage(me, targetUserId, message);
         reply(ack, { ok: true, message });
+        scheduleDemoReply(me, targetUserId);
       } catch (e) {
         reply(ack, errorPayload(e));
       }
@@ -147,4 +149,46 @@ const closeChatRoom = (a, b, reason) => {
   io.in(roomId).socketsLeave(roomId);
 };
 
-module.exports = { initSocket, emitNewMessage, emitMessagesRead, closeChatRoom };
+// Demo accounts "read" the message, show a typing indicator, then reply with a canned line.
+// At most one reply per chat every DEMO_REPLY_COOLDOWN_MS so a chat doesn't turn into spam.
+const DEMO_REPLY_COOLDOWN_MS = 8000;
+const lastDemoReply = new Map(); // roomId -> timestamp
+
+const scheduleDemoReply = async (senderId, demoUserId) => {
+  try {
+    if (!io || !(await isDemoUser(demoUserId))) return;
+    const roomId = chatRoomId(senderId, demoUserId);
+    if (Date.now() - (lastDemoReply.get(roomId) || 0) < DEMO_REPLY_COOLDOWN_MS) return;
+    lastDemoReply.set(roomId, Date.now());
+
+    const demoId = demoUserId.toString();
+    setTimeout(async () => {
+      try {
+        emitMessagesRead(demoId, senderId, await markRead(demoId, senderId));
+        io.to(roomId).emit("typing", { userId: demoId, isTyping: true });
+      } catch {
+        /* chat may have been closed meanwhile */
+      }
+    }, 1000);
+
+    setTimeout(async () => {
+      try {
+        io.to(roomId).emit("typing", { userId: demoId, isTyping: false });
+        const message = await sendMessage(demoId, senderId, pickReply());
+        emitNewMessage(demoId, senderId, message);
+      } catch {
+        /* blocked / unmatched meanwhile: sendMessage refuses, nothing to do */
+      }
+    }, 3000);
+  } catch (e) {
+    console.error("demo reply failed", e.message);
+  }
+};
+
+module.exports = {
+  initSocket,
+  emitNewMessage,
+  emitMessagesRead,
+  closeChatRoom,
+  scheduleDemoReply,
+};

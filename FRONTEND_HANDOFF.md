@@ -211,3 +211,72 @@ Keep one socket for the whole app, for example in a context or a module singleto
 - **Navbar:** links to Feed, Requests (with badge), Connections and Chats (with unread badge). Replace the "daisyUI" text with `APP_NAME`.
 - **Redux:** add `connectionsSlice`, `requestsSlice` and `chatSlice` (inbox plus unread counts). Clear every slice on logout.
 - **Toasts:** show success and error toasts with daisyUI `toast`.
+
+---
+
+## 7. v2 API additions (photos, prompts, projects, undo, demo accounts)
+
+### New fields on User (returned everywhere a User is returned)
+```jsonc
+{
+  "photos": [{ "url": "https://res.cloudinary.com/...", "publicId": "kodo/users/<id>/abc" }], // max 6, order = display order
+  "photoUrl": "…",            // always equals photos[0].url (or the default avatar). Use photos for carousels.
+  "prompts": [{ "question": "My most controversial tech opinion", "answer": "…" }], // max 3, questions from GET /meta
+  "projects": [{ "_id": "…", "title": "Will you be my Valentine?", "description": "…", "url": "https://…",
+                 "repoUrl": "https://github.com/…", "imageUrl": "https://…", "tags": ["react"] }], // max 5
+  "isDemo": true,              // seeded demo profile: show a small "Demo" badge on cards
+  "onboardingCompleted": false // only on the logged-in user (/profile, /login, /signup)
+}
+```
+- `lastName` is now **optional** at signup. Only `firstName`, `emailId` and `password` are required.
+- `about` no longer has a default value, so it may be missing.
+
+### Meta (public, no login)
+| Method & path | Success response |
+|---|---|
+| `GET /meta` | `{ genders, experienceLevels, promptQuestions: string[], limits: { photos, prompts, promptAnswer, projects, projectTitle, projectDescription, projectTags, skills, skill, about, shortText, photoMaxBytes, messageMax }, photoUploadsEnabled }`. Use it for the onboarding and profile forms instead of hardcoding these values. |
+| `GET /meta/showcase` | Up to 6 random **demo** profiles `{ _id, firstName, age, headline, location, photoUrl, skills (≤3), prompt: { question, answer } }`, for the landing page preview. Real users are never included. |
+
+### Profile content
+`PATCH /profile` now also accepts **`prompts`**, **`projects`** and **`onboardingCompleted`**. Arrays are **replaced as a whole**, so send the full list every time.
+- Each prompt `question` must be one of `promptQuestions`, and each question can be used only once.
+- Every URL field must start with `http(s)://`.
+- Validation errors return 400 with a readable `error`.
+
+Set `onboardingCompleted: true` when the user finishes onboarding. Use it to send users who haven't finished back into onboarding after login.
+
+### Photo upload (direct to Cloudinary; the file never goes through our server)
+If `GET /meta` returns `photoUploadsEnabled: false`, hide the upload UI. These endpoints then return 503.
+```js
+// 1. get signed params (one per file)
+const { data: { uploadUrl, params } } = await api.post("/profile/photos/upload-signature");
+// 2. upload the file straight to Cloudinary (plain fetch, NOT the api instance: no cookies, no /api proxy)
+const form = new FormData();
+Object.entries(params).forEach(([k, v]) => form.append(k, v));
+form.append("file", file);                                   // jpg/png/webp/heic, ≤10 MB
+const uploaded = await (await fetch(uploadUrl, { method: "POST", body: form })).json();
+if (uploaded.error) throw new Error(uploaded.error.message);
+// 3. attach it to the profile
+const { data } = await api.post("/profile/photos", { publicId: uploaded.public_id }); // -> { photos, photoUrl }
+```
+| Method & path | Body / query | Success response |
+|---|---|---|
+| `POST /profile/photos/upload-signature` | none | `{ uploadUrl, params }`. Returns 400 if the profile already has 6 photos. |
+| `POST /profile/photos` | `{ publicId }` | `201 { photos, photoUrl }`. 400 for a bad ID or a file over 10 MB; 409 if the photo was already added. |
+| `DELETE /profile/photos?publicId=…` (or `?index=N` for photos without a `publicId`) | none | `{ photos, photoUrl }` |
+| `PATCH /profile/photos/order` | `{ order: [2,0,1] }`, the new order of the current indexes | `{ photos, photoUrl }`. The first photo becomes the main photo. |
+
+Upload progress: use `XMLHttpRequest` (or axios **without** `withCredentials`) to Cloudinary if you want a progress bar. Compress or resize large images on the client first, which is optional.
+
+### Undo
+| Method & path | Success response |
+|---|---|
+| `POST /request/undo` | Undoes **my most recent swipe**, either a pass or a like that hasn't been answered yet. Returns `{ message, undoneStatus: "ignored" \| "interested", user: User }`, so put `user` back on top of the card stack. Returns 404 "Nothing to undo" otherwise. A match can't be undone; use unmatch for that. |
+| `GET /user/passed` | `User[]`: people I swiped left on, newest first (max 100) |
+| `DELETE /request/swipe/:userId` | Undoes my pass or pending like on that user, who then returns to my feed. `{ message }`, or 404. |
+
+### Demo accounts
+- `npm run seed` in the backend creates 16 demo developer profiles with illustrated avatars, prompts and projects. Real users always appear in the feed **before** demo profiles.
+- Swiping right on a demo profile is an **instant match** (`matched: true`).
+- When someone signs up, 3 random demo users swipe right on them, so the Requests tab has content straight away.
+- Messaging a demo user: about 1 second later they mark your messages as read (`messagesRead`), then show `typing`, and about 3 seconds after your message they reply (`messageReceived`). Your existing chat UI handles all of this already.
